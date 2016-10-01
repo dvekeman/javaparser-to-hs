@@ -2,6 +2,8 @@
 
 import Control.Monad ( liftM )
 
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC8
 import Data.List ( find )
 
 import Language.Java.Syntax
@@ -13,13 +15,33 @@ import System.Exit
 import System.IO
 import System.IO.Temp
 import System.Process
+import System.Directory.Tree
+import System.FilePath.Posix
 
 --------------------------------------------------------------------------------
+
+parseJava :: FilePath -> FilePath -> IO ()
+parseJava newpath oldpath
+  | ".java" == takeExtension oldpath = do
+    putStrLn $ "newpath: " ++ newpath
+    putStrLn $ "oldpath: " ++ oldpath
+    res <- parse oldpath
+    case res of
+         Left _     -> do
+           putStrLn $ "Unable to parse " ++ oldpath
+           contents <- B.readFile oldpath
+           B.writeFile newpath contents
+         Right tree -> let reread = map unL $ lexer $ show $ pretty tree in
+                   do  let contents = show $ pretty tree
+                       writeFile newpath $ show $ pretty tree
+  | otherwise = do
+    contents <- B.readFile oldpath
+    B.writeFile newpath contents
 
 parse :: FilePath -> IO (Either String CompilationUnit)
 parse path = withSystemTempFile "parse" $ \tmp h -> do
                          hClose h
-                         exitCode <- system $ "java -jar /Users/jkoppel/tarski/tools/javaparser-to-hs/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
+                         exitCode <- system $ "java -jar lib/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
                          case exitCode of
                            ExitFailure _ -> return $ Left "parse failed"
                            ExitSuccess   -> liftM (Right . read) $ readFile tmp
@@ -67,20 +89,34 @@ lexicalDifference xs ys = let xs' = [x | x <- removeAnno xs, not (x `elem` unsta
                       , SemiColon
                       ]
 
-
 unL :: L a -> a
 unL (L _ x) = x
 
+dumpParsedFile :: String -> FilePath -> IO ()
+dumpParsedFile content fp = writeFile fp content
+
+copyDirectory path newpath = do
+  orig <- readDirectoryWith return path
+  -- writeDirectory (newpath :/ dirTree orig)
+  writeDirectoryWith (\newpath oldpath -> parseJava newpath oldpath) $ (newpath :/ dirTree orig)
+
 main :: IO ()
-main = do fil <- liftM head $ getArgs
-          origStream <- liftM (map unL.lexer) $ readFile fil
-          res <- parse fil
-          case res of
-               Left _     -> exitFailure
-               Right tree -> let reread = map unL $ lexer $ show $ pretty tree in
-                         do  putStrLn $ show $ pretty tree
-                             case lexicalDifference reread origStream of
-                               Nothing -> return ()
-                               Just x  -> do putStrLn $ "Different: " ++ show x
-                                             putStrLn $ show $ pretty tree
-                                             exitFailure
+main = do (inputDir:outputDir:_) <- getArgs
+          copyDirectory inputDir outputDir
+          putStrLn "Done"
+
+-- main :: IO ()
+-- main = do fil <- liftM head $ getArgs
+--           origStream <- liftM (map unL.lexer) $ readFile fil
+--           res <- parse fil
+--           case res of
+--                Left _     -> exitFailure
+--                Right tree -> let reread = map unL $ lexer $ show $ pretty tree in
+--                          do  let contents = show $ pretty tree
+--                              -- putStrLn contents
+--                              dumpParsedFile contents (fil ++ ".out")
+--                              case lexicalDifference reread origStream of
+--                                Nothing -> do putStrLn (fil ++ ": No differences") >> return ()
+--                                Just x  -> do putStrLn $ "Different: " ++ show x
+--                                              putStrLn $ show $ pretty tree
+--                                              exitFailure
