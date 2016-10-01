@@ -3,3 +3,7 @@
 *.o
 *.hi
 Test
+outfiles
+testfiles
+**/.stack-work
+**/*.log

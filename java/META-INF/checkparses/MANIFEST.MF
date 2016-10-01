@@ -1,0 +1,2 @@
+Main-Class: CheckParses
+Class-Path: commons-lang3-3.1.jar javaparser-1.0.8.jar slf4j-api-1.7.21.jar slf4j-simple-1.7.21.jar 
