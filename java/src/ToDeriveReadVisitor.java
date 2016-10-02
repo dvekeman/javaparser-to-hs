@@ -1000,7 +1000,7 @@ public class ToDeriveReadVisitor implements VoidVisitor {
             qualifiers.add(0, c);
         }
 
-        output("(ClassType [");
+        output("(TypeDeclSpecifier (ClassType [");
 
         List<Type> prevTypeArgs = null;
         
@@ -1029,7 +1029,7 @@ public class ToDeriveReadVisitor implements VoidVisitor {
             output(")");
         }
 
-        output("])");
+        output("]))");
     }
 
     public void visit(PrimitiveType n, Object _) { genericVisit(n); }

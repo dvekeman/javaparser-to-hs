@@ -18,22 +18,28 @@ import System.Process
 import System.Directory.Tree
 import System.FilePath.Posix
 
+import Data.Typeable
+
 --------------------------------------------------------------------------------
 
 parseJava :: FilePath -> FilePath -> IO ()
 parseJava newpath oldpath
   | ".java" == takeExtension oldpath = do
-    putStrLn $ "newpath: " ++ newpath
-    putStrLn $ "oldpath: " ++ oldpath
     res <- parse oldpath
     case res of
          Left _     -> do
            putStrLn $ "Unable to parse " ++ oldpath
            contents <- B.readFile oldpath
            B.writeFile newpath contents
-         Right tree -> let reread = map unL $ lexer $ show $ pretty tree in
-                   do  let contents = show $ pretty tree
-                       writeFile newpath $ show $ pretty tree
+           putStrLn $ "Wrote unparsed file to " ++ newpath
+         Right tree -> do 
+                         putStrLn $ "Tree: " ++ show (typeOf tree)
+                         let reread = map unL $ lexer $ show $ pretty tree 
+                         let pTree = pretty tree
+                             contents = show $ pTree
+                         putStrLn $ contents
+                         writeFile newpath $ contents
+                         putStrLn $ "Wrote parsed file to " ++ newpath
   | otherwise = do
     contents <- B.readFile oldpath
     B.writeFile newpath contents
@@ -44,7 +50,11 @@ parse path = withSystemTempFile "parse" $ \tmp h -> do
                          exitCode <- system $ "java -jar lib/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
                          case exitCode of
                            ExitFailure _ -> return $ Left "parse failed"
-                           ExitSuccess   -> liftM (Right . read) $ readFile tmp
+                           ExitSuccess   -> do
+                                              print tmp
+                                              tmpcontents <- readFile tmp
+                                              print tmpcontents
+                                              liftM (Right . read) $ readFile tmp
 
 {-
 Parsing can rearrange modifiers, pretty-printing can insert parens, annotations are dropped. What do we do? Remove them!
