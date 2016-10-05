@@ -9,6 +9,7 @@ import Data.List ( find )
 import Language.Java.Syntax
 import Language.Java.Pretty
 import Language.Java.Lexer
+import Language.Java.Parser (parser, compilationUnit)
 
 import System.Environment
 import System.Exit
@@ -28,18 +29,17 @@ parseJava newpath oldpath
     res <- parse oldpath
     case res of
          Left _     -> do
-           putStrLn $ "Unable to parse " ++ oldpath
+           -- putStrLn $ "Unable to parse " ++ oldpath
            contents <- B.readFile oldpath
            B.writeFile newpath contents
-           putStrLn $ "Wrote unparsed file to " ++ newpath
+           putStrLn $ "Unable to parse " ++ oldpath ++ " (wrote as-is to " ++ newpath ++ ")"
          Right tree -> do 
-                         putStrLn $ "Tree: " ++ show (typeOf tree)
+                         -- putStrLn $ "Tree: " ++ show (typeOf tree)
                          let reread = map unL $ lexer $ show $ pretty tree 
                          let pTree = pretty tree
                              contents = show $ pTree
-                         putStrLn $ contents
                          writeFile newpath $ contents
-                         putStrLn $ "Wrote parsed file to " ++ newpath
+                         -- putStrLn $ "Wrote parsed file to " ++ newpath
   | otherwise = do
     contents <- B.readFile oldpath
     B.writeFile newpath contents
@@ -48,13 +48,13 @@ parse :: FilePath -> IO (Either String CompilationUnit)
 parse path = withSystemTempFile "parse" $ \tmp h -> do
                          hClose h
                          exitCode <- system $ "java -jar lib/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
+                        --  ecu <- parser compilationUnit <$> readFile path
+                        --  case ecu of
+                        --     Left err -> return $ Left $ show err
+                        --     Right cu -> return $ Right cu
                          case exitCode of
                            ExitFailure _ -> return $ Left "parse failed"
-                           ExitSuccess   -> do
-                                              print tmp
-                                              tmpcontents <- readFile tmp
-                                              print tmpcontents
-                                              liftM (Right . read) $ readFile tmp
+                           ExitSuccess   -> do liftM (Right . read) $ readFile tmp
 
 {-
 Parsing can rearrange modifiers, pretty-printing can insert parens, annotations are dropped. What do we do? Remove them!
@@ -105,14 +105,13 @@ unL (L _ x) = x
 dumpParsedFile :: String -> FilePath -> IO ()
 dumpParsedFile content fp = writeFile fp content
 
-copyDirectory path newpath = do
+copyDirectoryWithParse path newpath = do
   orig <- readDirectoryWith return path
-  -- writeDirectory (newpath :/ dirTree orig)
   writeDirectoryWith (\newpath oldpath -> parseJava newpath oldpath) $ (newpath :/ dirTree orig)
 
 main :: IO ()
 main = do (inputDir:outputDir:_) <- getArgs
-          copyDirectory inputDir outputDir
+          copyDirectoryWithParse inputDir outputDir
           putStrLn "Done"
 
 -- main :: IO ()
