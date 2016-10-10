@@ -1,3 +1,0 @@
-[submodule "submodule/language-java"]
-	path = submodule/language-java
-	url = git@github.com:jkoppel/language-java.git
