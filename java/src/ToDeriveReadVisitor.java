@@ -257,13 +257,42 @@ public class ToDeriveReadVisitor implements VoidVisitor {
              }
         }
     }
+
+    private static class ConstField extends NodeField {
         
+        private Object constantValue;
+        
+        protected Object getValueFrom(Object n) {
+            return constantValue;
+        }
+
+        protected void printValue(Object val) {
+            if(val instanceof Boolean) {
+                if(((Boolean)val).booleanValue()) {
+                    output("True");
+                } else {
+                    output("False");
+                }
+            } else if(val instanceof Integer) {
+                output(Integer.toString(((Integer)val).intValue()));
+            } else {
+                ((Node)val).accept(getInstance(), null);
+            }
+        }
+    }
+    
     protected static RawField f(String name) {
         RawField f = new RawField();
         f.fieldName = name;
         return f;
     }
-    
+
+    protected static ConstField constant(Object value) {
+        ConstField f = new ConstField();
+        f.constantValue = value;
+        return f;
+    }
+
     private static class MaybeField extends NodeField {
         private NodeField field;
 
@@ -450,8 +479,9 @@ public class ToDeriveReadVisitor implements VoidVisitor {
                 put("ConstructorDeclaration", wrap("ConstructorDecl", special(f("Modifiers"), "printModifiers"),
                                                    list(f("TypeParameters")), id(f("Name")), list(f("Parameters")),
                                                    list(special(f("Throws"), "printExceptionType")), special(f("Block"), "printConstructorBody")));
-                put("MethodDeclaration", wrap("MethodDecl", special(f("Modifiers"), "printModifiers"), list(f("TypeParameters")), special(f("Type"), "printVoidableType"),
+                put("_MethodDeclaration", wrap("MethodDecl", special(f("Modifiers"), "printModifiers"), list(f("TypeParameters")), special(f("Type"), "printVoidableType"),
                                               id(f("Name")), list(f("Parameters")), list(special(f("Throws"), "printExceptionType")),
+                                              maybe(special(constant(null), "printDefaultExp")), 
                                               wrap("MethodBody", maybe(f("Body")))));
                 put("Parameter", wrap("FormalParam", special(f("Modifiers"), "printModifiers"), special(f("Type"), "printType"), f("VarArgs"), f("Id")));
                 put("InitializerDeclaration", wrap("InitDecl", f("Static"), f("Block")));
@@ -551,7 +581,6 @@ public class ToDeriveReadVisitor implements VoidVisitor {
 
     public void printMemberDecl(BodyDeclaration n) {
         if(n instanceof FieldDeclaration ||
-           n instanceof MethodDeclaration ||
            n instanceof ConstructorDeclaration) {
 
             n.accept(this, null);
@@ -569,6 +598,8 @@ public class ToDeriveReadVisitor implements VoidVisitor {
             output("(MemberClassDecl ");
             dispatchVisit(n, "_EnumDeclaration");
             output(")");
+        } else if(n instanceof MethodDeclaration) {
+            dispatchVisit(n, "_MethodDeclaration");
         } else {
             throw new IllegalArgumentException("Unsupported node passed to printMemberDecl");
         }
@@ -698,7 +729,10 @@ public class ToDeriveReadVisitor implements VoidVisitor {
         output("]))");
         
     }
-    
+
+    public void printDefaultExp(Object o) {
+        //
+    }
 
     public void printVoidableType(Object o) { printVoidableType((Type)o); }
 

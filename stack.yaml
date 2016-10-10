@@ -7,7 +7,7 @@ resolver: lts-7.1
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- './submodule/language-java'
+- '/src/dvekeman/language-java/'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: []
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 
 import Control.Monad ( liftM )
+import Control.Exception
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC8
@@ -26,35 +27,43 @@ import Data.Typeable
 parseJava :: FilePath -> FilePath -> IO ()
 parseJava newpath oldpath
   | ".java" == takeExtension oldpath = do
-    res <- parse oldpath
+    res <- catch (parse oldpath)
+        (\e -> do let err = show (e :: SomeException)
+                  hPutStrLn stderr ("Warning: Couldn't parse " ++ oldpath ++ ": " ++ err)
+                  return (Left err))
     case res of
-         Left _     -> do
-           -- putStrLn $ "Unable to parse " ++ oldpath
-           contents <- B.readFile oldpath
-           B.writeFile newpath contents
-           putStrLn $ "Unable to parse " ++ oldpath ++ " (wrote as-is to " ++ newpath ++ ")"
-         Right tree -> do 
-                         -- putStrLn $ "Tree: " ++ show (typeOf tree)
-                         let reread = map unL $ lexer $ show $ pretty tree 
-                         let pTree = pretty tree
-                             contents = show $ pTree
-                         writeFile newpath $ contents
-                         -- putStrLn $ "Wrote parsed file to " ++ newpath
+         Left _     -> do 
+            copyFile oldpath newpath
+            putStrLn $ "Unable to parse " ++ oldpath ++ " (wrote as-is to " ++ newpath ++ ")"
+         Right tree -> catch (writeCompilationUnit newpath tree) 
+                         (\e -> do let err = show (e :: SomeException)
+                                   hPutStrLn stderr ("Warning: Couldn't pretty " ++ show oldpath ++ ": " ++ err)
+                                   copyFile oldpath newpath)
   | otherwise = do
+    contents <- B.readFile oldpath
+    B.writeFile newpath contents
+
+writeCompilationUnit newpath tree = do 
+  let pTree = pretty tree
+      contents = show $ pTree
+  writeFile newpath contents
+
+copyFile :: FilePath -> FilePath -> IO ()
+copyFile oldpath newpath = do
     contents <- B.readFile oldpath
     B.writeFile newpath contents
 
 parse :: FilePath -> IO (Either String CompilationUnit)
 parse path = withSystemTempFile "parse" $ \tmp h -> do
                          hClose h
-                         exitCode <- system $ "java -jar lib/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
-                        --  ecu <- parser compilationUnit <$> readFile path
-                        --  case ecu of
-                        --     Left err -> return $ Left $ show err
-                        --     Right cu -> return $ Right cu
-                         case exitCode of
-                           ExitFailure _ -> return $ Left "parse failed"
-                           ExitSuccess   -> do liftM (Right . read) $ readFile tmp
+                         ecu <- parser compilationUnit <$> readFile path
+                         case ecu of
+                            Left err -> return $ Left $ show err
+                            Right cu -> return $ Right cu
+--                          exitCode <- system $ "java -jar lib/javaparser-to-hs.jar " ++ (show path) ++ " " ++ (show tmp)
+--                          case exitCode of
+--                            ExitFailure _ -> return $ Left "parse failed"
+--                            ExitSuccess   -> do liftM (Right . read) $ readFile tmp
 
 {-
 Parsing can rearrange modifiers, pretty-printing can insert parens, annotations are dropped. What do we do? Remove them!
